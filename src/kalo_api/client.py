@@ -29,6 +29,10 @@ class TokenError(KaloError):
     """Raised when token exchange, validation, or refresh fails."""
 
 
+class IdentityError(KaloError):
+    """Raised when the logged-in identity cannot be mapped to a resident."""
+
+
 class ApiError(KaloError):
     """Raised when the Kalo resident API returns an error."""
 
@@ -54,6 +58,14 @@ class KaloConfig:
     api_base_url: str = "https://api.kalo.de"
     scopes: tuple[str, ...] = ("openid", "profile", "email", "roles")
     timeout: float = 20.0
+
+
+@dataclass(frozen=True)
+class ResidentContext:
+    resident_id: str
+    billing_unit_id: str
+    occupancy_id: str
+    residential_unit_number: str
 
 
 @dataclass(frozen=True)
@@ -114,8 +126,14 @@ class KaloClient:
         self.api_session = requests.Session()
         self.public_session = requests.Session()
         self._token: dict[str, Any] | None = None
+        self._id_token_claims: dict[str, Any] | None = None
+        self._resident_context: ResidentContext | None = None
+        self._resident_payload: dict[str, Any] | None = None
 
     def login(self, username: str, password: str) -> dict[str, Any]:
+        self._id_token_claims = None
+        self._resident_context = None
+        self._resident_payload = None
         attempt = self._new_attempt()
         authorization_url, _ = self.auth_session.create_authorization_url(
             self.config.authorization_endpoint,
@@ -154,6 +172,30 @@ class KaloClient:
 
     def get_resident(self, resident_id: str) -> dict[str, Any]:
         return self._get_json(f"/resident/v2/residents/{self._segment(resident_id)}")
+
+    def get_current_resident(self) -> dict[str, Any]:
+        """Return the resident record for the identity established by login."""
+        _, payload = self._resolve_resident()
+        return payload
+
+    def get_current_consumption_details(self) -> dict[str, Any]:
+        """Return consumption details using the logged-in resident context."""
+        context, _ = self._resolve_resident()
+        return self.get_consumption_details(
+            context.resident_id,
+            context.billing_unit_id,
+            context.occupancy_id,
+        )
+
+    def get_current_consumption_history(self) -> dict[str, Any]:
+        """Return consumption history using the logged-in resident context."""
+        context, _ = self._resolve_resident()
+        return self.get_consumption_history(
+            context.resident_id,
+            context.billing_unit_id,
+            context.residential_unit_number,
+            context.occupancy_id,
+        )
 
     def get_consumption_details(
         self,
@@ -280,7 +322,7 @@ class KaloClient:
         if str(token.get("token_type", "")).lower() != "bearer":
             raise TokenError("token response is not a bearer token")
 
-        self._validate_id_token(str(token["id_token"]), attempt.nonce)
+        self._id_token_claims = self._validate_id_token(str(token["id_token"]), attempt.nonce)
         self._set_token(dict(token))
         return dict(self._token)
 
@@ -347,6 +389,52 @@ class KaloClient:
         refreshed.setdefault("refresh_token", old_refresh_token)
         self._set_token(refreshed)
 
+    def _resolve_resident(self) -> tuple[ResidentContext, dict[str, Any]]:
+        if self._resident_context is not None and self._resident_payload is not None:
+            return self._resident_context, self._resident_payload
+
+        claims = self._id_token_claims
+        if claims is None:
+            raise IdentityError("login is required before resolving the resident")
+        resident_id = self._identifier(claims.get("sub"), "ID token subject")
+        payload = self.get_resident(resident_id)
+
+        account = payload.get("account")
+        if not isinstance(account, dict):
+            raise IdentityError("resident response has no account")
+        account_id = self._identifier(account.get("accountId"), "resident account ID")
+        if account_id != resident_id:
+            raise IdentityError("ID token subject does not match the resident account")
+
+        occupancy_data = payload.get("occupancyData")
+        if not isinstance(occupancy_data, list) or not occupancy_data:
+            raise IdentityError("resident response has no occupancy data")
+        if len(occupancy_data) != 1:
+            raise IdentityError("resident response contains multiple occupancy records")
+
+        occupancy = occupancy_data[0]
+        if not isinstance(occupancy, dict):
+            raise IdentityError("resident response contains invalid occupancy data")
+        residential_unit = occupancy.get("residentialUnit")
+        if not isinstance(residential_unit, dict):
+            raise IdentityError("occupancy data has no residential unit")
+
+        context = ResidentContext(
+            resident_id=resident_id,
+            billing_unit_id=self._identifier(
+                residential_unit.get("billingUnitNumber"),
+                "billing unit ID",
+            ),
+            occupancy_id=self._identifier(occupancy.get("uuid"), "occupancy ID"),
+            residential_unit_number=self._identifier(
+                residential_unit.get("residentialUnitNumber"),
+                "residential unit number",
+            ),
+        )
+        self._resident_context = context
+        self._resident_payload = payload
+        return context, payload
+
     def _get_json(self, path: str) -> dict[str, Any]:
         access_token = self._ensure_access_token()
         url = f"{self.config.api_base_url.rstrip('/')}{path}"
@@ -385,6 +473,15 @@ class KaloClient:
             and actual.path == expected.path
             and not actual.fragment
         )
+
+    @staticmethod
+    def _identifier(value: Any, name: str) -> str:
+        if value is None or isinstance(value, (dict, list, tuple, set)):
+            raise IdentityError(f"resident response has no valid {name}")
+        identifier = str(value)
+        if not identifier:
+            raise IdentityError(f"resident response has no valid {name}")
+        return identifier
 
     @staticmethod
     def _first(query: dict[str, list[str]], name: str) -> str | None:

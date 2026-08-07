@@ -32,6 +32,18 @@ All observed calls use `Authorization: Bearer ...` and returned HTTP 200.
 - `GET /resident/v2/residents/{resident_id}/billing-units/{billing_unit_id}/occupancies/{occupancy_id}/consumption-details`
 - `GET /resident/v2/residents/{resident_id}/billing-units/{billing_unit_id}/residential-units/{residential_unit_number}/occupancies/{occupancy_id}/consumptions-report`
 
+The validated ID-token `sub` is the resident identifier used by the API and matches
+`account.accountId` in the resident response. The observed response shape provides the
+remaining path parameters through one `occupancyData` entry:
+
+- `occupancyData[].uuid` → `occupancy_id`
+- `occupancyData[].residentialUnit.billingUnitNumber` → `billing_unit_id`
+- `occupancyData[].residentialUnit.residentialUnitNumber` → `residential_unit_number`
+
+The client requires exactly one occupancy entry for automatic resolution and keeps the
+residential-unit number as a string. It rejects missing data, identity mismatches and
+multiple entries rather than guessing.
+
 The access-token JWT had `aud=account`, `azp=web`, `scope=openid email profile`, and only
 generic account roles. The observed API accepts the token; the client therefore does not
 invent a different audience requirement. It sends the token only to `api.kalo.de`.

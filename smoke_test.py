@@ -8,33 +8,19 @@ def main():
     username = input("Kalo Benutzername: ")
     password = getpass("Kalo Passwort: ")
 
-    resident_id = input("Resident-ID: ")
-    billing_unit_id = input("Billing-Unit-ID: ")
-    occupancy_id = input("Occupancy-ID: ")
-    residential_unit_number = input("Residential-Unit-Nummer: ")
-
     client = KaloClient()
 
     try:
         token = client.login(username, password)
         print(f"Login erfolgreich, Scopes: {token.get('scope', '<unbekannt>')}")
 
-        resident = client.get_resident(resident_id)
+        resident = client.get_current_resident()
         print(f"Resident API erfolgreich: {list(resident)}")
 
-        details = client.get_consumption_details(
-            resident_id,
-            billing_unit_id,
-            occupancy_id,
-        )
+        details = client.get_current_consumption_details()
         print(f"Verbrauchsdetails erfolgreich: {list(details.get('currentConsumptions', {}))}")
 
-        history = client.get_consumption_history(
-            resident_id,
-            billing_unit_id,
-            residential_unit_number,
-            occupancy_id,
-        )
+        history = client.get_current_consumption_history()
         months = sorted(history.get("consumptions", {}))
         print(f"Historie erfolgreich: {len(months)} Monate")
         if months:

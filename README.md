@@ -16,8 +16,9 @@ Nothing is installed into the host Python environment. The `.venv` directory is 
 ## Current scope
 
 The client implements the Kalo Keycloak authorization-code flow with PKCE and the three
-observed resident API calls. Access and refresh tokens stay in process memory. A new login
-is required after the process ends.
+observed resident API calls. After login, it resolves the resident and occupancy parameters
+from the validated ID-token subject. Access and refresh tokens stay in process memory. A new
+login is required after the process ends.
 
 The observed provider values are:
 
@@ -40,7 +41,20 @@ from kalo_api import KaloClient
 
 client = KaloClient()
 client.login(username, password)
+resident = client.get_current_resident()
+details = client.get_current_consumption_details()
+history = client.get_current_consumption_history()
+```
+
+The explicit methods remain available when the identifiers are already known:
+
+```python
 resident = client.get_resident(resident_id)
+details = client.get_consumption_details(
+    resident_id,
+    billing_unit_id,
+    occupancy_id,
+)
 history = client.get_consumption_history(
     resident_id,
     billing_unit_id,
@@ -48,6 +62,13 @@ history = client.get_consumption_history(
     occupancy_id,
 )
 ```
+
+Automatic resolution uses the validated ID-token `sub` as `resident_id` and verifies it
+against `account.accountId`. The single `occupancyData` entry provides
+`uuid`, `residentialUnit.billingUnitNumber` and `residentialUnit.residentialUnitNumber`.
+If the response has no entry or more than one entry, the client raises `IdentityError`
+instead of selecting a potentially incorrect residence. Residential-unit numbers are kept
+as strings so leading zeroes are preserved.
 
 The bearer token is sent only to `https://api.kalo.de`. The API returns the provider JSON
 without adding a larger domain model. `YYYY-MM`, `estimated`, reference values, percentages,

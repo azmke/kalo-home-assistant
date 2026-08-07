@@ -8,7 +8,14 @@ import pytest
 from joserfc import jwt
 from joserfc.jwk import generate_key
 
-from kalo_api.client import ApiError, KaloClient, KaloConfig, LoginError, TokenError
+from kalo_api.client import (
+    ApiError,
+    IdentityError,
+    KaloClient,
+    KaloConfig,
+    LoginError,
+    TokenError,
+)
 
 
 class FakeResponse:
@@ -47,6 +54,20 @@ LOGIN_HTML = """
   </form>
 </html>
 """
+
+
+RESIDENT_PAYLOAD = {
+    "account": {"accountId": "resident"},
+    "occupancyData": [
+        {
+            "uuid": "occupancy",
+            "residentialUnit": {
+                "billingUnitNumber": 164965,
+                "residentialUnitNumber": "048",
+            },
+        }
+    ],
+}
 
 
 def test_login_preserves_form_state_and_pkce():
@@ -88,7 +109,9 @@ def test_login_preserves_form_state_and_pkce():
             "expires_in": 300,
         }
     )
-    client._validate_id_token = Mock(return_value={"iss": config.issuer})
+    client._validate_id_token = Mock(
+        return_value={"iss": config.issuer, "sub": "resident"}
+    )
 
     token = client.login("user", "password")
 
@@ -101,6 +124,7 @@ def test_login_preserves_form_state_and_pkce():
     assert token_kwargs["grant_type"] == "authorization_code"
     assert token_kwargs["redirect_uri"] == config.redirect_uri
     assert token_kwargs["code_verifier"]
+    assert client._id_token_claims["sub"] == "resident"
 
 
 def test_login_accepts_callback_from_authorization_redirect():
@@ -133,7 +157,9 @@ def test_login_accepts_callback_from_authorization_redirect():
             "expires_in": 300,
         }
     )
-    client._validate_id_token = Mock(return_value={"iss": config.issuer})
+    client._validate_id_token = Mock(
+        return_value={"iss": config.issuer, "sub": "resident"}
+    )
 
     assert client.login("user", "password")["access_token"] == "access"
     client.auth_session.fetch_token.assert_called_once()
@@ -235,6 +261,73 @@ def test_api_refreshes_once_after_401_and_uses_bearer_header():
     client.auth_session.refresh_token.assert_called_once()
 
 
+def test_current_methods_resolve_and_cache_resident_context():
+    client = KaloClient()
+    client._set_token({"access_token": "access", "expires_in": 300})
+    client._id_token_claims = {"sub": "resident"}
+    client.api_session.get = Mock(
+        side_effect=[
+            FakeResponse(200, payload=RESIDENT_PAYLOAD),
+            FakeResponse(200, payload={"currentConsumptions": {"HEAT": {}}}),
+            FakeResponse(200, payload={"consumptions": {"2026-07": {}}}),
+        ]
+    )
+
+    resident = client.get_current_resident()
+    details = client.get_current_consumption_details()
+    history = client.get_current_consumption_history()
+
+    assert resident == RESIDENT_PAYLOAD
+    assert details["currentConsumptions"]["HEAT"] == {}
+    assert history["consumptions"] == {"2026-07": {}}
+    urls = [call.args[0] for call in client.api_session.get.call_args_list]
+    assert urls == [
+        "https://api.kalo.de/resident/v2/residents/resident",
+        "https://api.kalo.de/resident/v2/residents/resident/billing-units/164965/"
+        "occupancies/occupancy/consumption-details",
+        "https://api.kalo.de/resident/v2/residents/resident/billing-units/164965/"
+        "residential-units/048/occupancies/occupancy/consumptions-report",
+    ]
+
+
+def test_current_resident_requires_login():
+    with pytest.raises(IdentityError, match="login"):
+        KaloClient().get_current_resident()
+
+
+def test_current_resident_rejects_account_identity_mismatch():
+    client = KaloClient()
+    client._set_token({"access_token": "access", "expires_in": 300})
+    client._id_token_claims = {"sub": "resident"}
+    client.api_session.get = Mock(
+        return_value=FakeResponse(
+            200,
+            payload={**RESIDENT_PAYLOAD, "account": {"accountId": "other"}},
+        )
+    )
+
+    with pytest.raises(IdentityError, match="does not match"):
+        client.get_current_resident()
+
+
+def test_current_resident_rejects_multiple_occupancies():
+    client = KaloClient()
+    client._set_token({"access_token": "access", "expires_in": 300})
+    client._id_token_claims = {"sub": "resident"}
+    client.api_session.get = Mock(
+        return_value=FakeResponse(
+            200,
+            payload={
+                **RESIDENT_PAYLOAD,
+                "occupancyData": [RESIDENT_PAYLOAD["occupancyData"][0]] * 2,
+            },
+        )
+    )
+
+    with pytest.raises(IdentityError, match="multiple occupancy"):
+        client.get_current_resident()
+
+
 def test_consumption_paths_are_built_from_arguments():
     client = KaloClient()
     client._set_token({"access_token": "access", "expires_in": 300})
@@ -248,7 +341,7 @@ def test_consumption_paths_are_built_from_arguments():
         "https://api.kalo.de/resident/v2/residents/resident/billing-units/billing/"
         "occupancies/occupancy/consumption-details",
         "https://api.kalo.de/resident/v2/residents/resident/billing-units/billing/"
-        "residential-units/48/occupancies/occupancy/consumption",
+        "residential-units/48/occupancies/occupancy/consumptions-report",
     ]
 
 
