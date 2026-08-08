@@ -16,29 +16,8 @@ from joserfc import jwt
 from joserfc.jwk import KeySet
 from joserfc.jwt import JWTClaimsRegistry
 
-
-class KaloError(Exception):
-    """Base exception for the Kalo client."""
-
-
-class LoginError(KaloError):
-    """Raised when the interactive login flow cannot complete."""
-
-
-class TokenError(KaloError):
-    """Raised when token exchange, validation, or refresh fails."""
-
-
-class IdentityError(KaloError):
-    """Raised when the logged-in identity cannot be mapped to a resident."""
-
-
-class ApiError(KaloError):
-    """Raised when the Kalo resident API returns an error."""
-
-    def __init__(self, message: str, status_code: int | None = None):
-        super().__init__(message)
-        self.status_code = status_code
+from .errors import ApiError, IdentityError, LoginError, TokenError
+from .models import ResidentContext
 
 
 @dataclass(frozen=True)
@@ -58,14 +37,6 @@ class KaloConfig:
     api_base_url: str = "https://api.kalo.de"
     scopes: tuple[str, ...] = ("openid", "profile", "email", "roles")
     timeout: float = 20.0
-
-
-@dataclass(frozen=True)
-class ResidentContext:
-    resident_id: str
-    billing_unit_id: str
-    occupancy_id: str
-    residential_unit_number: str
 
 
 @dataclass(frozen=True)
@@ -131,6 +102,8 @@ class KaloClient:
         self._resident_payload: dict[str, Any] | None = None
 
     def login(self, username: str, password: str) -> dict[str, Any]:
+        self._token = None
+        self.auth_session.token = None
         self._id_token_claims = None
         self._resident_context = None
         self._resident_payload = None
@@ -313,6 +286,7 @@ class KaloClient:
                 code=code,
                 redirect_uri=self.config.redirect_uri,
                 code_verifier=attempt.code_verifier,
+                timeout=self.config.timeout,
             )
         except (OAuthError, requests.RequestException) as exc:
             raise TokenError("token exchange failed") from exc
@@ -326,7 +300,7 @@ class KaloClient:
         self._set_token(dict(token))
         return dict(self._token)
 
-    def _validate_id_token(self, id_token: str, nonce: str) -> dict[str, Any]:
+    def _validate_id_token(self, id_token: str, nonce: str | None) -> dict[str, Any]:
         try:
             response = self.public_session.get(
                 self.config.jwks_uri,
@@ -336,21 +310,25 @@ class KaloClient:
                 raise TokenError("JWKS endpoint returned an error")
             key_set = KeySet.import_key_set(response.json())
             decoded = jwt.decode(id_token, key_set, algorithms={"RS256"})
-            registry = JWTClaimsRegistry(
-                iss={"essential": True, "value": self.config.issuer},
-                sub={"essential": True},
-                aud={"essential": True, "value": self.config.client_id},
-                exp={"essential": True},
-                iat={"essential": True},
-                nonce={"essential": True, "value": nonce},
-                leeway=60,
-            )
+            registry_kwargs: dict[str, Any] = {
+                "iss": {"essential": True, "value": self.config.issuer},
+                "sub": {"essential": True},
+                "aud": {"essential": True, "value": self.config.client_id},
+                "exp": {"essential": True},
+                "iat": {"essential": True},
+                "leeway": 60,
+            }
+            if nonce is not None:
+                registry_kwargs["nonce"] = {"essential": True, "value": nonce}
+            registry = JWTClaimsRegistry(**registry_kwargs)
             registry.validate(decoded.claims)
             if decoded.claims.get("azp") not in (None, self.config.client_id):
                 raise TokenError("ID token authorized party does not match")
             return dict(decoded.claims)
         except TokenError:
             raise
+        except requests.RequestException as exc:
+            raise TokenError("JWKS request failed") from exc
         except Exception as exc:
             raise TokenError("ID token validation failed") from exc
 
@@ -380,12 +358,32 @@ class KaloClient:
                 self.auth_session.refresh_token(
                     self.config.token_endpoint,
                     refresh_token=old_refresh_token,
+                    timeout=self.config.timeout,
                 )
             )
         except (OAuthError, requests.RequestException) as exc:
             raise TokenError("token refresh failed") from exc
         if not refreshed.get("access_token"):
             raise TokenError("refresh response is missing an access token")
+        if str(refreshed.get("token_type", "")).lower() != "bearer":
+            raise TokenError("refresh response is not a bearer token")
+        refreshed_id_token = refreshed.get("id_token")
+        if refreshed_id_token:
+            refreshed_claims = self._validate_id_token(str(refreshed_id_token), None)
+            try:
+                previous_sub = self._identifier(
+                    (self._id_token_claims or {}).get("sub"),
+                    "ID token subject",
+                )
+                refreshed_sub = self._identifier(
+                    refreshed_claims.get("sub"),
+                    "ID token subject",
+                )
+            except IdentityError as exc:
+                raise TokenError("refreshed ID token has no valid subject") from exc
+            if refreshed_sub != previous_sub:
+                raise TokenError("refreshed ID token subject does not match")
+            self._id_token_claims = refreshed_claims
         refreshed.setdefault("refresh_token", old_refresh_token)
         self._set_token(refreshed)
 
@@ -439,12 +437,18 @@ class KaloClient:
         access_token = self._ensure_access_token()
         url = f"{self.config.api_base_url.rstrip('/')}{path}"
         headers = {"Authorization": f"Bearer {access_token}"}
-        response = self.api_session.get(url, headers=headers, timeout=self.config.timeout)
+        try:
+            response = self.api_session.get(url, headers=headers, timeout=self.config.timeout)
+        except requests.RequestException as exc:
+            raise ApiError("Kalo API request failed") from exc
         if response.status_code == 401:
             self._refresh()
             access_token = self._ensure_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
-            response = self.api_session.get(url, headers=headers, timeout=self.config.timeout)
+            try:
+                response = self.api_session.get(url, headers=headers, timeout=self.config.timeout)
+            except requests.RequestException as exc:
+                raise ApiError("Kalo API request failed") from exc
         if response.status_code >= 400:
             raise ApiError("Kalo API request failed", response.status_code)
         try:

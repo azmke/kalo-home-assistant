@@ -1,16 +1,41 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "kalo-api"
 version = "0.1.0"
-description = "Local client for the KALO resident portal"
+description = "Unofficial Python client and CLI for the KALO resident portal"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "@azmke" }]
+keywords = ["kalo", "resident-portal", "oidc", "oauth2"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Home Automation",
+]
 requires-python = ">=3.10"
 dependencies = [
     "Authlib>=1.7,<2",
+    "joserfc>=1.3,<2",
     "requests>=2.31,<3",
 ]
+
+[project.urls]
+Repository = "https://github.com/azmke/kalo-api"
+Issues = "https://github.com/azmke/kalo-api/issues"
+
+[project.scripts]
+kalo = "kalo_api.cli:main"
 
 [project.optional-dependencies]
 dev = [
