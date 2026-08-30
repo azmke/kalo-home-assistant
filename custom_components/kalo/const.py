@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "kalo"
-PLATFORMS = ["sensor", "button"]
+PLATFORMS = ["sensor"]
 
 CONF_POLL_INTERVAL_HOURS = "poll_interval_hours"
 CONF_MAX_RETRIES = "max_retries"

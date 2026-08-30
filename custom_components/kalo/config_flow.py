@@ -8,6 +8,8 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult, OptionsFlowWithReload
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import section
+from homeassistant.helpers.selector import NumberSelector, NumberSelectorConfig, NumberSelectorMode
 
 from .api import IdentityError, KaloClient, LoginError, TokenError
 from .const import (
@@ -24,24 +26,41 @@ from .const import (
 )
 from .coordinator import account_key
 
+_SECTION_ADVANCED_OPTIONS = "advanced_options"
+
+
+def _number_selector(minimum: int, maximum: int) -> NumberSelector:
+    """Create a whole-number selector for an advanced option."""
+
+    return NumberSelector(
+        NumberSelectorConfig(min=minimum, max=maximum, step=1, mode=NumberSelectorMode.BOX)
+    )
+
 
 def _schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     defaults = defaults or {}
+    advanced_defaults = defaults.get(_SECTION_ADVANCED_OPTIONS, {})
     return vol.Schema(
         {
             vol.Required(CONF_USERNAME, default=defaults.get(CONF_USERNAME, "")): str,
             vol.Required(CONF_PASSWORD): str,
-            vol.Optional(
-                CONF_POLL_INTERVAL_HOURS,
-                default=defaults.get(CONF_POLL_INTERVAL_HOURS, DEFAULT_POLL_INTERVAL_HOURS),
-            ): vol.All(
-                vol.Coerce(int),
-                vol.Range(MIN_POLL_INTERVAL_HOURS, MAX_POLL_INTERVAL_HOURS),
+            vol.Required(_SECTION_ADVANCED_OPTIONS): section(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_POLL_INTERVAL_HOURS,
+                            default=advanced_defaults.get(
+                                CONF_POLL_INTERVAL_HOURS, DEFAULT_POLL_INTERVAL_HOURS
+                            ),
+                        ): _number_selector(MIN_POLL_INTERVAL_HOURS, MAX_POLL_INTERVAL_HOURS),
+                        vol.Required(
+                            CONF_MAX_RETRIES,
+                            default=advanced_defaults.get(CONF_MAX_RETRIES, DEFAULT_MAX_RETRIES),
+                        ): _number_selector(0, MAX_RETRIES),
+                    }
+                ),
+                {"collapsed": True},
             ),
-            vol.Optional(
-                CONF_MAX_RETRIES,
-                default=defaults.get(CONF_MAX_RETRIES, DEFAULT_MAX_RETRIES),
-            ): vol.All(vol.Coerce(int), vol.Range(0, MAX_RETRIES)),
         }
     )
 
@@ -69,7 +88,7 @@ async def _validate_credentials(hass: HomeAssistant, username: str, password: st
 class KaloConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle KALO configuration."""
 
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle first-time setup."""
@@ -84,6 +103,7 @@ class KaloConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except Exception:
                 errors["base"] = "cannot_connect"
             else:
+                advanced_options = user_input[_SECTION_ADVANCED_OPTIONS]
                 await self.async_set_unique_id(unique_id)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
@@ -93,8 +113,8 @@ class KaloConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_PASSWORD: user_input[CONF_PASSWORD],
                     },
                     options={
-                        CONF_POLL_INTERVAL_HOURS: user_input[CONF_POLL_INTERVAL_HOURS],
-                        CONF_MAX_RETRIES: user_input[CONF_MAX_RETRIES],
+                        CONF_POLL_INTERVAL_HOURS: advanced_options[CONF_POLL_INTERVAL_HOURS],
+                        CONF_MAX_RETRIES: advanced_options[CONF_MAX_RETRIES],
                     },
                 )
         return self.async_show_form(step_id="user", data_schema=_schema(user_input), errors=errors)
@@ -157,14 +177,11 @@ class KaloOptionsFlow(OptionsFlowWithReload):
                     default=self.config_entry.options.get(
                         CONF_POLL_INTERVAL_HOURS, DEFAULT_POLL_INTERVAL_HOURS
                     ),
-                ): vol.All(
-                    vol.Coerce(int),
-                    vol.Range(MIN_POLL_INTERVAL_HOURS, MAX_POLL_INTERVAL_HOURS),
-                ),
+                ): _number_selector(MIN_POLL_INTERVAL_HOURS, MAX_POLL_INTERVAL_HOURS),
                 vol.Required(
                     CONF_MAX_RETRIES,
                     default=self.config_entry.options.get(CONF_MAX_RETRIES, DEFAULT_MAX_RETRIES),
-                ): vol.All(vol.Coerce(int), vol.Range(0, MAX_RETRIES)),
+                ): _number_selector(0, MAX_RETRIES),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

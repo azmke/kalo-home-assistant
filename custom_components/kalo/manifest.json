@@ -3,11 +3,11 @@
   "name": "KALO",
   "codeowners": ["@azmke"],
   "config_flow": true,
-  "documentation": "https://github.com/azmke/kalo-api",
-  "issue_tracker": "https://github.com/azmke/kalo-api/issues",
+  "documentation": "https://github.com/azmke/kalo-home-assistant",
+  "issue_tracker": "https://github.com/azmke/kalo-home-assistant/issues",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "dependencies": ["recorder"],
   "requirements": ["Authlib==1.7.2", "joserfc==1.7.4"],
-  "version": "0.2.0"
+  "version": "0.3.0"
 }

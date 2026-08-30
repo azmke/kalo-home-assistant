@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="brand/icon.png" alt="KALO for Home Assistant" width="112">
+  <img src="https://raw.githubusercontent.com/azmke/kalo-home-assistant/main/custom_components/kalo/brand/icon.png" alt="KALO for Home Assistant" width="112">
 </p>
 
 # KALO for Home Assistant
@@ -43,10 +43,10 @@ the KALO address; resident, occupancy, and residential-unit UUIDs are never expo
 | --- | --- |
 | Heating consumption | Latest reported monthly heating consumption in kWh |
 | Warm water consumption | Latest reported monthly warm-water consumption in kWh |
-| Rediscover residential units | Refreshes the account and discovers added units immediately |
 
-The rediscovery button is safe to use at any time. Existing devices and their historic statistics
-are retained when KALO returns a changing set of residential units.
+New residential units are discovered automatically during the regular update. To trigger an
+immediate rediscovery, use **Reload** from the KALO integration's three-dot menu. Existing devices
+and their historic statistics are retained when KALO returns a changing set of residential units.
 
 ## History and dashboard charts
 
@@ -58,7 +58,7 @@ To create the two history charts:
 
 1. Edit a dashboard and add a **Statistics graph** card.
 2. Select the address-labelled statistic ending in **Heating / Heizung**.
-3. Choose a monthly period and the desired time range.
+3. Choose a monthly period, the **Change** statistic type, and the desired time range.
 4. Add a second card for **Warm water / Warmwasser**.
 
 Long-term statistics are retained independently of the normal Recorder state-history purge.
@@ -70,8 +70,8 @@ in the integration's **Configure** dialog. After a failed poll, the integration 
 each of the following days. The default retry budget is two retries, for three attempts in total.
 
 If that budget is exhausted, Home Assistant creates a Repair issue and polling pauses. Submit the
-repair, or use **Rediscover residential units**, to resume polling immediately. Invalid credentials
-start Home Assistant's standard reauthentication flow.
+repair, or reload the integration, to resume polling immediately. Invalid credentials start Home
+Assistant's standard reauthentication flow.
 
 ## Development
 
