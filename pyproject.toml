@@ -41,12 +41,20 @@ dev = [
     "pytest>=8,<9",
     "ruff>=0.8,<1",
 ]
+ha-test = [
+    "pytest>=9,<10",
+    "pytest-homeassistant-custom-component>=0.13,<0.14",
+]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+packages = ["kalo_api"]
+
+[tool.setuptools.package-dir]
+kalo_api = "custom_components/kalo/kalo_api"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100

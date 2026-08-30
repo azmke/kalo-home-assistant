@@ -1,0 +1,68 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "KALO verbinden",
+        "data": {
+          "username": "E-Mail-Adresse oder Benutzername",
+          "password": "Passwort",
+          "poll_interval_hours": "Abfrageintervall (Stunden)",
+          "max_retries": "Wiederholungen nach fehlgeschlagener Abfrage"
+        }
+      },
+      "reauth_confirm": {
+        "title": "KALO erneut verbinden",
+        "data": {
+          "username": "E-Mail-Adresse oder Benutzername",
+          "password": "Passwort"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Anmeldung fehlgeschlagen.",
+      "cannot_connect": "KALO ist nicht erreichbar."
+    },
+    "abort": {
+      "already_configured": "Dieses KALO-Konto ist bereits eingerichtet.",
+      "reauth_successful": "KALO wurde erfolgreich erneut verbunden."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "poll_interval_hours": "Abfrageintervall (Stunden)",
+          "max_retries": "Wiederholungen nach fehlgeschlagener Abfrage"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "heating_consumption": {"name": "Heizungsverbrauch"},
+      "warm_water_consumption": {"name": "Warmwasserverbrauch"}
+    },
+    "button": {
+      "rediscover_units": {"name": "Wohneinheiten neu einlesen"}
+    }
+  },
+  "issues": {
+    "polling_stopped": {
+      "title": "KALO-Abfrage wurde nach fehlgeschlagenen Aktualisierungen angehalten",
+      "description": "KALO konnte auch nach den konfigurierten Wiederholungen nicht abgefragt werden. Bestätige diese Reparatur, um den Abruf sofort erneut zu starten.",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "KALO-Abfrage fortsetzen",
+            "description": "Starte sofort eine KALO-Aktualisierung und setze die automatische Abfrage fort."
+          }
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_loaded": {"message": "Die KALO-Integration ist nicht geladen."},
+    "unknown_issue_id": {"message": "Die KALO-Reparatur ist nicht mehr verfügbar."},
+    "invalid_issue_data": {"message": "Die KALO-Reparatur enthält ungültige Daten."}
+  }
+}

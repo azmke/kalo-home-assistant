@@ -47,6 +47,7 @@ RESIDENT_PAYLOAD: dict[str, Any] = {
         {
             "uuid": "occupancy",
             "residentialUnit": {
+                "uuid": "residential-unit",
                 "billingUnitNumber": 654815,
                 "residentialUnitNumber": 15,
             },

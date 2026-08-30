@@ -1,0 +1,68 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect KALO",
+        "data": {
+          "username": "Email address or username",
+          "password": "Password",
+          "poll_interval_hours": "Polling interval (hours)",
+          "max_retries": "Retries after a failed update"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect KALO",
+        "data": {
+          "username": "Email address or username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Authentication failed.",
+      "cannot_connect": "Unable to connect to KALO."
+    },
+    "abort": {
+      "already_configured": "This KALO account is already configured.",
+      "reauth_successful": "KALO was reconnected successfully."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "poll_interval_hours": "Polling interval (hours)",
+          "max_retries": "Retries after a failed update"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "heating_consumption": {"name": "Heating consumption"},
+      "warm_water_consumption": {"name": "Warm water consumption"}
+    },
+    "button": {
+      "rediscover_units": {"name": "Rediscover residential units"}
+    }
+  },
+  "issues": {
+    "polling_stopped": {
+      "title": "KALO polling was paused after failed updates",
+      "description": "KALO could not be queried after the configured retries. Submit this repair to try again now.",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Resume KALO polling",
+            "description": "Start an immediate KALO update and resume automatic polling."
+          }
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_loaded": {"message": "The KALO integration is not loaded."},
+    "unknown_issue_id": {"message": "The KALO repair is no longer available."},
+    "invalid_issue_data": {"message": "The KALO repair contains invalid data."}
+  }
+}

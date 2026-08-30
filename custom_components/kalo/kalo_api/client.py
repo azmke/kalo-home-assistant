@@ -4,6 +4,7 @@ import base64
 import hashlib
 import time
 from dataclasses import dataclass
+from datetime import date
 from html.parser import HTMLParser
 from secrets import token_urlsafe
 from typing import Any
@@ -17,7 +18,7 @@ from joserfc.jwk import KeySet
 from joserfc.jwt import JWTClaimsRegistry
 
 from .errors import ApiError, IdentityError, LoginError, TokenError
-from .models import ResidentContext
+from .models import Address, ResidentContext
 
 
 @dataclass(frozen=True)
@@ -102,6 +103,7 @@ class KaloClient:
         self._token: dict[str, Any] | None = None
         self._id_token_claims: dict[str, Any] | None = None
         self._resident_context: ResidentContext | None = None
+        self._resident_contexts: tuple[ResidentContext, ...] | None = None
         self._resident_payload: dict[str, Any] | None = None
 
     def login(self, username: str, password: str) -> dict[str, Any]:
@@ -172,6 +174,11 @@ class KaloClient:
         """Return the resident record for the identity established by login."""
         _, payload = self._resolve_resident()
         return payload
+
+    def get_current_resident_contexts(self) -> tuple[ResidentContext, ...]:
+        """Return every occupancy context for the logged-in resident."""
+        contexts, _ = self._resolve_resident_contexts()
+        return contexts
 
     def get_current_consumption_details(self) -> dict[str, Any]:
         """Return consumption details using the logged-in resident context."""
@@ -368,6 +375,7 @@ class KaloClient:
         self.auth_session.token = None
         self._id_token_claims = None
         self._resident_context = None
+        self._resident_contexts = None
         self._resident_payload = None
 
     def _ensure_access_token(self) -> str:
@@ -417,8 +425,15 @@ class KaloClient:
         self._set_token(refreshed)
 
     def _resolve_resident(self) -> tuple[ResidentContext, dict[str, Any]]:
-        if self._resident_context is not None and self._resident_payload is not None:
-            return self._resident_context, self._resident_payload
+        contexts, payload = self._resolve_resident_contexts()
+        if len(contexts) != 1:
+            raise IdentityError("resident response contains multiple occupancy records")
+        self._resident_context = contexts[0]
+        return contexts[0], payload
+
+    def _resolve_resident_contexts(self) -> tuple[tuple[ResidentContext, ...], dict[str, Any]]:
+        if self._resident_contexts is not None and self._resident_payload is not None:
+            return self._resident_contexts, self._resident_payload
 
         claims = self._id_token_claims
         if claims is None:
@@ -436,31 +451,45 @@ class KaloClient:
         occupancy_data = payload.get("occupancyData")
         if not isinstance(occupancy_data, list) or not occupancy_data:
             raise IdentityError("resident response has no occupancy data")
-        if len(occupancy_data) != 1:
-            raise IdentityError("resident response contains multiple occupancy records")
+        contexts = tuple(
+            self._context_from_occupancy(resident_id, occupancy) for occupancy in occupancy_data
+        )
+        self._resident_contexts = contexts
+        self._resident_payload = payload
+        return contexts, payload
 
-        occupancy = occupancy_data[0]
+    def _context_from_occupancy(self, resident_id: str, occupancy: Any) -> ResidentContext:
         if not isinstance(occupancy, dict):
             raise IdentityError("resident response contains invalid occupancy data")
         residential_unit = occupancy.get("residentialUnit")
         if not isinstance(residential_unit, dict):
             raise IdentityError("occupancy data has no residential unit")
-
-        context = ResidentContext(
+        address_data = residential_unit.get("address")
+        address = None
+        if isinstance(address_data, dict):
+            address = Address(
+                street=self._optional_text(address_data.get("street")),
+                house_number=self._optional_text(address_data.get("houseNumber")),
+                zip_code=self._optional_text(address_data.get("zipCode")),
+                city=self._optional_text(address_data.get("city")),
+                location=self._optional_text(address_data.get("location")),
+            )
+        return ResidentContext(
             resident_id=resident_id,
             billing_unit_id=self._identifier(
-                residential_unit.get("billingUnitNumber"),
-                "billing unit ID",
+                residential_unit.get("billingUnitNumber"), "billing unit ID"
             ),
             occupancy_id=self._identifier(occupancy.get("uuid"), "occupancy ID"),
             residential_unit_number=self._identifier(
-                residential_unit.get("residentialUnitNumber"),
-                "residential unit number",
+                residential_unit.get("residentialUnitNumber"), "residential unit number"
             ),
+            residential_unit_id=self._identifier(
+                residential_unit.get("uuid"), "residential unit ID"
+            ),
+            address=address,
+            occupancy_from=self._date(occupancy.get("from")),
+            occupancy_to=self._date(occupancy.get("to")),
         )
-        self._resident_context = context
-        self._resident_payload = payload
-        return context, payload
 
     def _get_json(self, path: str) -> dict[str, Any]:
         access_token = self._ensure_access_token()
@@ -515,6 +544,22 @@ class KaloClient:
         if not identifier:
             raise IdentityError(f"resident response has no valid {name}")
         return identifier
+
+    @staticmethod
+    def _optional_text(value: Any) -> str | None:
+        if value is None or isinstance(value, (dict, list, tuple, set)):
+            return None
+        text = str(value).strip()
+        return text or None
+
+    @staticmethod
+    def _date(value: Any) -> date | None:
+        if value is None:
+            return None
+        try:
+            return date.fromisoformat(str(value))
+        except ValueError as exc:
+            raise IdentityError("occupancy data has an invalid date") from exc
 
     @staticmethod
     def _first(query: dict[str, list[str]], name: str) -> str | None:
