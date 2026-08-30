@@ -9,7 +9,6 @@ description = "Unofficial Python client and CLI for the KALO resident portal"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "@azmke" }]
 keywords = ["kalo", "resident-portal", "oidc", "oauth2"]
 classifiers = [
     "Development Status :: 4 - Beta",
