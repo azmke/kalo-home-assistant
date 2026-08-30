@@ -1,63 +1,81 @@
+<p align="center">
+  <img src="brand/icon.png" alt="KALO for Home Assistant" width="112">
+</p>
+
 # KALO for Home Assistant
 
-An unofficial HACS integration for the KALO resident portal. It imports monthly heating and
-warm-water consumption for every residential unit associated with a KALO account.
+KALO is an unofficial HACS integration for the KALO resident portal. It adds monthly heating and
+warm-water consumption to Home Assistant for every residential unit linked to a KALO account.
 
-> KALO does not provide a public API for this use case. Portal changes can break this integration
-> without notice. This project is not affiliated with or endorsed by KALO.
+## Highlights
 
-## Features
+- Setup entirely through the Home Assistant UI.
+- One device per residential unit, named from its address.
+- Separate heating and warm-water consumption sensors.
+- Monthly long-term statistics that retain history beyond KALO's rolling data window.
+- Automatic discovery of newly assigned residential units.
+- German and English user-interface translations.
 
-- UI setup with KALO email address or username and password.
-- One Home Assistant device per residential unit, named from its address rather than a KALO UUID.
-- Heating and warm-water sensors for each unit.
-- Monthly external long-term statistics, preserving older months beyond KALO's rolling window
-  without creating duplicate points.
-- Automatic unit discovery on every poll and a **Rediscover residential units** button.
-- Configurable polling interval (24 to 168 hours) and retry budget; defaults to a 24-hour poll
-  with two daily retries after a failure.
-- Home Assistant reauthentication for invalid credentials and a Repair flow after exhausted
-  retries.
-- English and German user-interface translations.
+## Requirements
+
+- Home Assistant 2026.8.0 or newer.
+- HACS.
+- An active KALO resident-portal account.
 
 ## Installation
 
-1. In HACS, add this repository as a custom repository of type **Integration**.
+1. Open **HACS** in Home Assistant and add this repository as a custom repository of type
+   **Integration**.
 2. Install **KALO** and restart Home Assistant.
 3. Go to **Settings → Devices & services → Add integration**, then select **KALO**.
-4. Enter the KALO account credentials. Configure the polling interval and retry count later from
-   the integration's **Configure** dialog if needed.
+4. Enter the email address or username and password used for the KALO resident portal.
 
-KALO credentials are stored in Home Assistant's config entry. They are not exposed through
-entity attributes, diagnostics, or integration logs. Protect Home Assistant's `.storage`
-directory and backups as you would for other Home Assistant credentials.
+The integration stores credentials in Home Assistant's config entry. They are not included in
+entity attributes, diagnostics, or integration logs. Protect your Home Assistant storage and
+backups as you would for any other integration credentials.
 
-## Residential units and history
+## Entities and residential units
 
-One KALO account can be associated with more than one residential unit. The integration creates
-one device for each unit, using the KALO address as its display name. Internal resident,
-occupancy, and residential-unit UUIDs are never shown in the Home Assistant UI.
+Each residential unit returned by KALO appears as a Home Assistant device. Its display name uses
+the KALO address; resident, occupancy, and residential-unit UUIDs are never exposed in the UI.
 
-KALO returns monthly values for a limited rolling period. The integration imports each response
-as external long-term statistics keyed by calendar month. A newer value replaces the same month;
-months no longer included in a later KALO response remain available.
+| Entity | Purpose |
+| --- | --- |
+| Heating consumption | Latest reported monthly heating consumption in kWh |
+| Warm water consumption | Latest reported monthly warm-water consumption in kWh |
+| Rediscover residential units | Refreshes the account and discovers added units immediately |
 
-Add two native **Statistics graph** cards to a dashboard: choose the address-labelled external
-statistic for **Heating / Heizung** and **Warm water / Warmwasser**, use a monthly period, and set
-the desired time range. These long-term statistics are retained independently of the normal
-Recorder state-history purge.
+The rediscovery button is safe to use at any time. Existing devices and their historic statistics
+are retained when KALO returns a changing set of residential units.
+
+## History and dashboard charts
+
+KALO returns a limited, rolling range of monthly values. This integration writes those values as
+external long-term statistics, using the calendar month as the unique key. A corrected KALO value
+replaces the existing point for that month; months no longer returned by KALO remain available.
+
+To create the two history charts:
+
+1. Edit a dashboard and add a **Statistics graph** card.
+2. Select the address-labelled statistic ending in **Heating / Heizung**.
+3. Choose a monthly period and the desired time range.
+4. Add a second card for **Warm water / Warmwasser**.
+
+Long-term statistics are retained independently of the normal Recorder state-history purge.
 
 ## Updates and recovery
 
-The default poll runs every 24 hours. A failed poll is retried on the following two days. Once the
-configured retry limit is exhausted, polling pauses and Home Assistant creates a Repair issue.
-Submitting that repair, or pressing **Rediscover residential units**, immediately resumes polling
-and refreshes the account's units. Invalid credentials start Home Assistant's standard
-reauthentication flow.
+By default, KALO is queried every 24 hours. The polling interval can be set from 24 to 168 hours
+in the integration's **Configure** dialog. After a failed poll, the integration retries once on
+each of the following days. The default retry budget is two retries, for three attempts in total.
+
+If that budget is exhausted, Home Assistant creates a Repair issue and polling pauses. Submit the
+repair, or use **Rediscover residential units**, to resume polling immediately. Invalid credentials
+start Home Assistant's standard reauthentication flow.
 
 ## Development
 
-Use only a project-local virtual environment:
+Use a project-local virtual environment:
 
 ```bash
 python3 -m venv .venv
@@ -68,4 +86,8 @@ python3 -m venv .venv
 
 ## License
 
-See [LICENSE](LICENSE), [SECURITY.md](SECURITY.md), and [DISCLAIMER.md](DISCLAIMER.md).
+This project is licensed under the [MIT License](LICENSE).
+
+## Disclaimer
+
+KALO is not affiliated with, endorsed by, or supported by KALO. See [DISCLAIMER.md](DISCLAIMER.md) for the full disclaimer.
