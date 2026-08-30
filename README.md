@@ -4,7 +4,7 @@
 
 # KALO for Home Assistant
 
-KALO is an unofficial HACS integration for the KALO resident portal. It adds monthly heating and
+This is an unofficial HACS integration for the KALO resident portal. It adds monthly heating and
 warm-water consumption to Home Assistant for every residential unit linked to a KALO account.
 
 ## Highlights
@@ -90,4 +90,4 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Disclaimer
 
-KALO is not affiliated with, endorsed by, or supported by KALO. See [DISCLAIMER.md](DISCLAIMER.md) for the full disclaimer.
+This project is not affiliated with, endorsed by, or supported by KALO. See [DISCLAIMER.md](DISCLAIMER.md) for the full disclaimer.
