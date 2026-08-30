@@ -28,6 +28,8 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from .api import ApiError, IdentityError, KaloClient, LoginError, TokenError
+from .api.models import ResidentContext
 from .const import (
     CONF_MAX_RETRIES,
     CONF_PASSWORD,
@@ -39,8 +41,6 @@ from .const import (
     DOMAIN,
     RETRY_INTERVAL,
 )
-from .kalo_api import ApiError, IdentityError, KaloClient, LoginError, TokenError
-from .kalo_api.models import ResidentContext
 from .models import ConsumptionValue, UnitData
 
 _LOGGER = logging.getLogger(__name__)

@@ -1,4 +1,4 @@
-"""Tests that require the Home Assistant test dependency group."""
+"""Tests for KALO data coordination and statistics parsing."""
 
 from __future__ import annotations
 

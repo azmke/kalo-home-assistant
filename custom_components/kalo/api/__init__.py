@@ -1,4 +1,4 @@
-"""Small client for the Kalo resident portal."""
+"""Internal KALO resident-portal API client."""
 
 from .client import KaloClient, KaloConfig
 from .errors import ApiError, IdentityError, KaloError, LoginError, TokenError

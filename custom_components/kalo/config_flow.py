@@ -9,6 +9,7 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult, OptionsFlowWithReload
 from homeassistant.core import HomeAssistant, callback
 
+from .api import IdentityError, KaloClient, LoginError, TokenError
 from .const import (
     CONF_MAX_RETRIES,
     CONF_PASSWORD,
@@ -22,7 +23,6 @@ from .const import (
     MIN_POLL_INTERVAL_HOURS,
 )
 from .coordinator import account_key
-from .kalo_api import IdentityError, KaloClient, LoginError, TokenError
 
 
 def _schema(defaults: dict[str, Any] | None = None) -> vol.Schema:

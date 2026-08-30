@@ -9,7 +9,7 @@ from conftest import LOGIN_HTML, FakeResponse
 from joserfc import jwt
 from joserfc.jwk import generate_key
 
-from kalo_api import KaloClient, KaloConfig, LoginError, TokenError
+from custom_components.kalo.api import KaloClient, KaloConfig, LoginError, TokenError
 
 
 def test_login_preserves_form_state_and_pkce():

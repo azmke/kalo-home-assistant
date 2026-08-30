@@ -5,7 +5,8 @@ from unittest.mock import Mock
 
 import pytest
 from conftest import RESIDENT_PAYLOAD, FakeResponse
-from kalo_api import IdentityError, KaloClient
+
+from custom_components.kalo.api import IdentityError, KaloClient
 
 
 def _authenticated_client() -> KaloClient:

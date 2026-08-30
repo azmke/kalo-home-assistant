@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from .kalo_api.models import Address, ResidentContext
+from .api.models import Address, ResidentContext
 
 
 @dataclass(frozen=True)
