@@ -122,6 +122,49 @@ def test_authorization_page_request_does_not_require_access_token():
     assert client.auth_session.get.call_args.kwargs["withhold_token"] is True
 
 
+def test_logout_revokes_access_token_and_clears_local_state():
+    config = KaloConfig()
+    client = KaloClient(config)
+    client._set_token(
+        {
+            "access_token": "access",
+            "refresh_token": "refresh",
+            "token_type": "Bearer",
+        }
+    )
+    client._id_token_claims = {"sub": "resident"}
+    client._resident_context = Mock()
+    client._resident_payload = {"account": {}}
+    client.auth_session.post = Mock(return_value=FakeResponse(200))
+
+    client.logout()
+
+    assert client.auth_session.post.call_args.args[0] == config.revocation_endpoint
+    assert client.auth_session.post.call_args.kwargs == {
+        "data": {
+            "client_id": config.client_id,
+            "token": "access",
+            "token_type_hint": "access_token",
+        },
+        "timeout": config.timeout,
+        "withhold_token": True,
+    }
+    assert client._token is None
+    assert client.auth_session.token is None
+    assert client._id_token_claims is None
+    assert client._resident_context is None
+    assert client._resident_payload is None
+
+
+def test_logout_without_token_only_clears_local_state():
+    client = KaloClient()
+    client.auth_session.post = Mock()
+
+    client.logout()
+
+    client.auth_session.post.assert_not_called()
+
+
 def test_callback_state_mismatch_is_rejected():
     config = KaloConfig()
     client = KaloClient(config)

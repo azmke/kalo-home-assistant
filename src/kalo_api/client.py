@@ -29,6 +29,9 @@ class KaloConfig:
     token_endpoint: str = (
         "https://meine.kalo.de/auth/realms/consumer/protocol/openid-connect/token"
     )
+    revocation_endpoint: str = (
+        "https://meine.kalo.de/auth/realms/consumer/protocol/openid-connect/revoke"
+    )
     jwks_uri: str = (
         "https://meine.kalo.de/auth/realms/consumer/protocol/openid-connect/certs"
     )
@@ -102,11 +105,7 @@ class KaloClient:
         self._resident_payload: dict[str, Any] | None = None
 
     def login(self, username: str, password: str) -> dict[str, Any]:
-        self._token = None
-        self.auth_session.token = None
-        self._id_token_claims = None
-        self._resident_context = None
-        self._resident_payload = None
+        self._clear_authentication()
         attempt = self._new_attempt()
         authorization_url, _ = self.auth_session.create_authorization_url(
             self.config.authorization_endpoint,
@@ -142,6 +141,29 @@ class KaloClient:
             raise LoginError("authorization issuer does not match")
 
         return self._exchange_code(callback.code, attempt)
+
+    def logout(self) -> None:
+        """Revoke the current access token and discard all local authentication state."""
+        token = self._token
+        self._clear_authentication()
+        if token is None or not token.get("access_token"):
+            return
+
+        try:
+            response = self.auth_session.post(
+                self.config.revocation_endpoint,
+                data={
+                    "client_id": self.config.client_id,
+                    "token": str(token["access_token"]),
+                    "token_type_hint": "access_token",
+                },
+                timeout=self.config.timeout,
+                withhold_token=True,
+            )
+        except requests.RequestException as exc:
+            raise TokenError("token revocation failed") from exc
+        if response.status_code >= 400:
+            raise TokenError("token revocation failed")
 
     def get_resident(self, resident_id: str) -> dict[str, Any]:
         return self._get_json(f"/resident/v2/residents/{self._segment(resident_id)}")
@@ -340,6 +362,13 @@ class KaloClient:
             token["refresh_expires_at"] = now + float(token["refresh_expires_in"])
         self._token = token
         self.auth_session.token = token
+
+    def _clear_authentication(self) -> None:
+        self._token = None
+        self.auth_session.token = None
+        self._id_token_claims = None
+        self._resident_context = None
+        self._resident_payload = None
 
     def _ensure_access_token(self) -> str:
         if self._token is None or not self._token.get("access_token"):

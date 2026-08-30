@@ -25,6 +25,9 @@ def main():
         if months:
             print(f"Period: {months[0]} to {months[-1]}")
 
+        client.logout()
+        print("Logout succeeded")
+
     except KaloError as error:
         print(f"Smoke test failed: {type(error).__name__}: {error}")
         raise SystemExit(1)

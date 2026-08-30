@@ -39,6 +39,8 @@ client.login(username, password)
 resident = client.get_current_resident()
 details = client.get_current_consumption_details()
 history = client.get_current_consumption_history()
+
+client.logout()
 ```
 
 `username` and `password` are ordinary Python strings supplied by the caller. Keep them in
@@ -78,6 +80,7 @@ python -m kalo_api resident
 The commands do not take usernames, passwords, resident IDs, or other resource identifiers as
 arguments. JSON is pretty-printed to stdout; errors go to stderr with a non-zero exit code.
 Passwords, tokens, and sessions are never accepted as arguments or persisted.
+After a successful login, each CLI command revokes its access token before exiting.
 
 For example, a successful call has the following shape (provider fields may change):
 
@@ -94,6 +97,7 @@ For example, a successful call has the following shape (provider fields may chan
 
 - PKCE, state, nonce and JWKS-backed ID-token validation are used.
 - Tokens and cookies remain in process memory only.
+- `logout()` revokes the current access token and clears local authentication state.
 - The bearer token is sent only to `https://api.kalo.de`.
 - There is no general network retry system; HTTP 401 triggers one token refresh and retry.
 - JavaScript login steps, MFA and CAPTCHA are not bypassed.

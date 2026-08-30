@@ -14,6 +14,7 @@ EXIT_USAGE = 2
 EXIT_LOGIN = 3
 EXIT_IDENTITY = 4
 EXIT_API = 5
+EXIT_LOGOUT = 6
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,22 +44,35 @@ def main(
     username = input_fn("KALO username: ")
     password = password_fn("KALO password: ")
     client = client_factory()
+    authenticated = False
+    payload: dict[str, Any] | None = None
+    exit_code = EXIT_OK
 
     try:
         client.login(username, password)
+        authenticated = True
         payload = _fetch(client, args.command)
     except (LoginError, TokenError) as error:
         print(f"Login failed: {error}", file=sys.stderr)
-        return EXIT_LOGIN
+        exit_code = EXIT_LOGIN
     except IdentityError as error:
         print(f"Could not resolve the logged-in identity: {error}", file=sys.stderr)
-        return EXIT_IDENTITY
+        exit_code = EXIT_IDENTITY
     except ApiError as error:
         print(f"KALO API error: {error}", file=sys.stderr)
-        return EXIT_API
+        exit_code = EXIT_API
+    finally:
+        if authenticated:
+            try:
+                client.logout()
+            except TokenError as error:
+                print(f"Logout failed: {error}", file=sys.stderr)
+                if exit_code == EXIT_OK:
+                    exit_code = EXIT_LOGOUT
 
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
-    return EXIT_OK
+    if payload is not None:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return exit_code
 
 
 def _fetch(client: KaloClient, command: str) -> dict[str, Any]:

@@ -5,15 +5,17 @@ from dataclasses import dataclass
 
 import pytest
 
-from kalo_api.cli import EXIT_API, EXIT_IDENTITY, EXIT_OK, main
-from kalo_api.errors import ApiError, IdentityError
+from kalo_api.cli import EXIT_API, EXIT_IDENTITY, EXIT_LOGOUT, EXIT_OK, main
+from kalo_api.errors import ApiError, IdentityError, TokenError
 
 
 @dataclass
 class FakeClient:
     payload: dict
     error: Exception | None = None
+    logout_error: Exception | None = None
     logged_in: tuple[str, str] | None = None
+    logout_calls: int = 0
 
     def login(self, username: str, password: str) -> None:
         self.logged_in = (username, password)
@@ -32,6 +34,11 @@ class FakeClient:
     def get_current_consumption_history(self) -> dict:
         return self._result()
 
+    def logout(self) -> None:
+        self.logout_calls += 1
+        if self.logout_error:
+            raise self.logout_error
+
 
 def test_resident_command_prints_pretty_json(capsys: pytest.CaptureFixture[str]):
     client = FakeClient({"account": {"accountId": "resident"}})
@@ -45,6 +52,7 @@ def test_resident_command_prints_pretty_json(capsys: pytest.CaptureFixture[str])
 
     assert result == EXIT_OK
     assert client.logged_in == ("user", "secret")
+    assert client.logout_calls == 1
     assert json.loads(capsys.readouterr().out) == client.payload
 
 
@@ -60,6 +68,7 @@ def test_identity_error_is_written_to_stderr(capsys: pytest.CaptureFixture[str])
 
     captured = capsys.readouterr()
     assert result == EXIT_IDENTITY
+    assert client.logout_calls == 1
     assert "identity failed" in captured.err
     assert captured.out == ""
 
@@ -76,5 +85,26 @@ def test_api_error_is_written_to_stderr(capsys: pytest.CaptureFixture[str]):
 
     captured = capsys.readouterr()
     assert result == EXIT_API
+    assert client.logout_calls == 1
     assert "request failed" in captured.err
     assert captured.out == ""
+
+
+def test_logout_error_returns_nonzero_status(capsys: pytest.CaptureFixture[str]):
+    client = FakeClient(
+        {"account": {"accountId": "resident"}},
+        logout_error=TokenError("revocation failed"),
+    )
+
+    result = main(
+        ["resident"],
+        client_factory=lambda: client,
+        input_fn=lambda _: "user",
+        password_fn=lambda _: "secret",
+    )
+
+    captured = capsys.readouterr()
+    assert result == EXIT_LOGOUT
+    assert client.logout_calls == 1
+    assert "Logout failed: revocation failed" in captured.err
+    assert json.loads(captured.out) == client.payload
