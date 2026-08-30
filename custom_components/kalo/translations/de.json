@@ -5,9 +5,21 @@
         "title": "KALO verbinden",
         "data": {
           "username": "E-Mail-Adresse oder Benutzername",
-          "password": "Passwort",
-          "poll_interval_hours": "Abfrageintervall (Stunden)",
-          "max_retries": "Wiederholungen nach fehlgeschlagener Abfrage"
+          "password": "Passwort"
+        },
+        "sections": {
+          "advanced_options": {
+            "name": "Erweiterte Einstellungen",
+            "description": "KALO aktualisiert Verbrauchsdaten monatlich. Die tägliche Abfrage und zwei Wiederholungen sind für die meisten Konten passend.",
+            "data": {
+              "poll_interval_hours": "Abfrageintervall (Stunden)",
+              "max_retries": "Wiederholungen nach fehlgeschlagener Abfrage"
+            },
+            "data_description": {
+              "poll_interval_hours": "Zwischen 24 und 168 Stunden. Standard ist 24 Stunden.",
+              "max_retries": "Anzahl der Wiederholungen an Folgetagen. Der Standardwert 2 bedeutet insgesamt drei Versuche."
+            }
+          }
         }
       },
       "reauth_confirm": {
@@ -41,9 +53,6 @@
     "sensor": {
       "heating_consumption": {"name": "Heizungsverbrauch"},
       "warm_water_consumption": {"name": "Warmwasserverbrauch"}
-    },
-    "button": {
-      "rediscover_units": {"name": "Wohneinheiten neu einlesen"}
     }
   },
   "issues": {

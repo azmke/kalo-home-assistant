@@ -78,7 +78,6 @@ class KaloConsumptionSensor(CoordinatorEntity[KaloDataUpdateCoordinator], Sensor
             name=unit.display_name,
             manufacturer="KALO",
             model="Resident portal",
-            via_device=(DOMAIN, self.coordinator.account_key),
         )
 
     @property

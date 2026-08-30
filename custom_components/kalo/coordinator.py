@@ -117,6 +117,14 @@ class KaloDataUpdateCoordinator(DataUpdateCoordinator[dict[str, UnitData]]):
         await self._save_state()
         await self.async_request_refresh()
 
+    async def async_startup_refresh(self) -> None:
+        """Refresh immediately when Home Assistant sets up or reloads the entry."""
+        if self._polling_stopped:
+            self._polling_stopped = False
+            self.update_interval = self._normal_interval
+            await self._save_state()
+        await self.async_refresh()
+
     async def _async_update_data(self) -> dict[str, UnitData]:
         if self._polling_stopped:
             raise UpdateFailed("KALO polling is paused")
@@ -281,16 +289,11 @@ class KaloDataUpdateCoordinator(DataUpdateCoordinator[dict[str, UnitData]]):
             dt_util.utc_from_timestamp(0),
             None,
             {statistic_id},
-            "hour",
+            "month",
             None,
             {"start", "state"},
         )
-        merged: dict[date, Decimal] = {}
-        for statistic in existing.get(statistic_id, []):
-            start = dt_util.utc_from_timestamp(statistic["start"]).astimezone(_KALO_TIME_ZONE)
-            if statistic.get("state") is not None:
-                merged[date(start.year, start.month, 1)] = Decimal(str(statistic["state"]))
-        merged.update({period: value.value for period, value in values.items()})
+        merged = _merge_monthly_values(existing.get(statistic_id, []), values)
 
         total = Decimal("0")
         statistics: list[StatisticData] = []
@@ -309,6 +312,19 @@ class KaloDataUpdateCoordinator(DataUpdateCoordinator[dict[str, UnitData]]):
             has_sum=True,
         )
         async_add_external_statistics(self.hass, metadata, statistics)
+
+
+def _merge_monthly_values(
+    existing: list[dict[str, Any]], values: dict[date, ConsumptionValue]
+) -> dict[date, Decimal]:
+    """Merge recorder data with KALO values, keyed by calendar month."""
+    merged: dict[date, Decimal] = {}
+    for statistic in existing:
+        start = dt_util.utc_from_timestamp(statistic["start"]).astimezone(_KALO_TIME_ZONE)
+        if statistic.get("state") is not None:
+            merged[date(start.year, start.month, 1)] = Decimal(str(statistic["state"]))
+    merged.update({period: value.value for period, value in values.items()})
+    return merged
 
 
 def _parse_month(value: object) -> date:
